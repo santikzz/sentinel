@@ -1,49 +1,43 @@
 import subprocess
-import time
 from datetime import datetime
 import os
 
-SAVE_DIR = 'entries'
+from colorama import Fore, Style, Back, init
+from colorama import just_fix_windows_console
 
-def save_entries():
-    
+from utils import *
+
+SAVE_DIR = 'snapshots'
+
+def take_snapshot():
     
     if not os.path.exists(SAVE_DIR):
         os.makedirs(SAVE_DIR)
     
     # subprocess.run() executes a command and waits for it to complete, capturing its output
-    # -c to get as CVS, * to get ALL entries
-
-    # output = str(str(subprocess.check_output(['autorunsc64.exe', '-c'])).strip().replace(r"\r", "").split(r"\n"))
-    result = subprocess.run(['autorunsc64.exe', '-c'], capture_output=True, text=True)
-    output = result.stdout
+    # -ct to get as tab delimiting CVS, * to get ALL entries
 
     # timestamp = str(int(time.time()))                    # '1719681175'
-    timestamp = datetime.now().strftime('%Y-%m-%m-%f')     # '2024-06-06-368334'
+    timestamp = datetime.now().strftime('%Y-%m-%m')     # '2024-06-06-368334'
+    full_path = f'{SAVE_DIR}/{timestamp}_snapshot.csv'
 
-    full_path = f'{SAVE_DIR}/{timestamp}_entries.csv'
-    with open(full_path, 'w') as f:
-        f.write(output)
-
-    # with open(full_path, 'w', newline='', encoding='utf-8') as f:
-    #     csv_writer = csv.writer(f)
-    #     csv_writer.writerow(['Time','Entry Location','Entry','Enabled','Category','Profile','Description','Company','Image Path','Version','Launch String'])
-
-    #     lines = output.strip().splitlines()
-    #     for line in lines:
-    #         data = line.split('\t')
-    #         csv_writer.writerow(data)
+    result = subprocess.check_output(['autorunsc64.exe', '-ct', '-o', full_path])
     
-    return full_path
+    # output = '\n'.join(result.decode('utf-16').splitlines()[6:])
+    # with open(full_path, 'w') as f:
+    #     f.write(output)
 
-def list_entries():
+    return full_path
+    
+
+def list_snapshots():
     if not os.path.exists(SAVE_DIR):
-        return None
+        return []
     return sorted(os.listdir(SAVE_DIR))
 
-def compare(file1, file2):
+def compare(new, old):
 
-    with open(file1, 'r') as f1, open(file2,'r') as f2:
+    with open(new, 'r') as f1, open(old,'r') as f2:
         lines1 = f1.readlines()
         lines2 = f2.readlines()
 
@@ -53,40 +47,64 @@ def compare(file1, file2):
     new_lines = set(lines1_stripped) - set(lines2_stripped)
     missing_lines = set(lines2_stripped) - set(lines1_stripped)
 
-    # print(f"New lines in {file1} compared to {file2}:\n")
+    # print(f"New lines in {new} compared to {old}:\n")
     # for line in new_lines:
     #     print(line)
 
-    # print(f"\nMissing lines in {file1} compared to {file2}:\n")
+    # print(f"\nMissing lines in {new} compared to {old}:\n")
     # for line in missing_lines:
     #     print(line)
 
     return new_lines, missing_lines
     
 
-def print_entries(entries):
+def print_entries(new_entries, missing_entries):
     
+    headers = ['Timestamp','Entry Location','Entry Name','Enabled','Category','Profile','Description','Company','Image Path','Version','Launch String']
     
-    for entry in entries:
-        cols = entry.split(',')
-        for col in cols:
-            print(col.strip())
+    if(len(new_entries) > 0):
+        print(Fore.RED+"[!] NEW ENTRIES FOUND!"+Fore.RESET)
+    else:
+        print(Fore.GREEN+"[+] NO NEW ENTRIES FOUND!"+Fore.RESET)
+
+    for entry in new_entries:
+        cols = entry.split('\t')
+        print(Fore.GREEN+'\n==================================================================')
+        for idx, col, in enumerate(cols):
+            print(f'{headers[idx]}:\t\t {col.strip()}')
+        print('==================================================================\n'+Fore.RESET)
+
+    if(len(missing_entries) > 0):
+        print(Fore.RED+"[!] MISSING ENTRIES FOUND!"+Fore.RESET)
+    else:
+        print(Fore.GREEN+"[+] NO MISSING ENTRIES FOUND!"+Fore.RESET)
+
+    for entry in missing_entries:
+        cols = entry.split('\t')
+        print(Fore.RED+'\n==================================================================')
+        for idx, col, in enumerate(cols):
+            print(f'{headers[idx]}:\t\t {col.strip()}')
+        print('==================================================================\n'+Fore.RESET)
 
 if __name__ == '__main__':
 
-    new = save_entries()
+    just_fix_windows_console()
+    os.system('cls')
+    banner()
 
-    entries = list_entries()
-    # print(entries)
+    print('[+] CAPTURING CURRENT REGISTRY SNAPSHOT...')
+    latest = take_snapshot()
 
+    entries = list_snapshots()
     old = entries[len(entries)-2]
     new = entries[len(entries)-1]
 
-    print(f'{old=}, {new=}')
-    print('\n')
+    print('\n=================== COMPARING SNAPSHOTS ===================')
+    print(f'CURRENT:\t{new}\nPREVIOUS:\t{old}')
+    print('===========================================================\n')
 
+    print('[+] COMPARING SNAPSHOTS...\n')
     new_lines, missing_lines = compare(f'{SAVE_DIR}/{new}', f'{SAVE_DIR}/{old}')
+    print_entries(new_lines, missing_lines)
 
-    print_entries(new_lines)
-
-    print("DONE")
+    print(Fore.CYAN+"\n[+] DONE!"+Fore.RESET)
