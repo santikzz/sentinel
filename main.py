@@ -6,6 +6,7 @@ from colorama import Fore, Style, Back, init
 from colorama import just_fix_windows_console
 
 from utils import *
+from download import *
 
 SAVE_DIR = 'snapshots'
 
@@ -21,7 +22,7 @@ def take_snapshot():
     timestamp = datetime.now().strftime('%Y-%m-%m')     # '2024-06-06-368334'
     full_path = f'{SAVE_DIR}/{timestamp}_snapshot.csv'
 
-    result = subprocess.check_output(['autorunsc64.exe', '-ct', '-o', full_path])
+    result = subprocess.check_output(['bin/autorunsc64.exe', '-ct', '-o', full_path])
     
     # output = '\n'.join(result.decode('utf-16').splitlines()[6:])
     # with open(full_path, 'w') as f:
@@ -91,6 +92,8 @@ if __name__ == '__main__':
     just_fix_windows_console()
     os.system('cls')
     banner()
+
+    check_binaries()
 
     print('[+] CAPTURING CURRENT REGISTRY SNAPSHOT...')
     latest = take_snapshot()
