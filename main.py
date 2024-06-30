@@ -1,91 +1,12 @@
-import subprocess
-from datetime import datetime
 import os
+import sys
 
 from colorama import Fore, Style, Back, init
 from colorama import just_fix_windows_console
 
 from utils import *
 from download import *
-
-SAVE_DIR = 'snapshots'
-
-def take_snapshot():
-    
-    if not os.path.exists(SAVE_DIR):
-        os.makedirs(SAVE_DIR)
-    
-    # subprocess.run() executes a command and waits for it to complete, capturing its output
-    # -ct to get as tab delimiting CVS, * to get ALL entries
-
-    # timestamp = str(int(time.time()))                    # '1719681175'
-    timestamp = datetime.now().strftime('%Y-%m-%m')     # '2024-06-06-368334'
-    full_path = f'{SAVE_DIR}/{timestamp}_snapshot.csv'
-
-    result = subprocess.check_output(['bin/autorunsc64.exe', '-ct', '-o', full_path])
-    
-    # output = '\n'.join(result.decode('utf-16').splitlines()[6:])
-    # with open(full_path, 'w') as f:
-    #     f.write(output)
-
-    return full_path
-    
-
-def list_snapshots():
-    if not os.path.exists(SAVE_DIR):
-        return []
-    return sorted(os.listdir(SAVE_DIR))
-
-def compare(new, old):
-
-    with open(new, 'r') as f1, open(old,'r') as f2:
-        lines1 = f1.readlines()
-        lines2 = f2.readlines()
-
-    lines1_stripped = [line.strip() for line in lines1]
-    lines2_stripped = [line.strip() for line in lines2]
-
-    new_lines = set(lines1_stripped) - set(lines2_stripped)
-    missing_lines = set(lines2_stripped) - set(lines1_stripped)
-
-    # print(f"New lines in {new} compared to {old}:\n")
-    # for line in new_lines:
-    #     print(line)
-
-    # print(f"\nMissing lines in {new} compared to {old}:\n")
-    # for line in missing_lines:
-    #     print(line)
-
-    return new_lines, missing_lines
-    
-
-def print_entries(new_entries, missing_entries):
-    
-    headers = ['Timestamp','Entry Location','Entry Name','Enabled','Category','Profile','Description','Company','Image Path','Version','Launch String']
-    
-    if(len(new_entries) > 0):
-        print(Fore.RED+"[!] NEW ENTRIES FOUND!"+Fore.RESET)
-    else:
-        print(Fore.GREEN+"[+] NO NEW ENTRIES FOUND!"+Fore.RESET)
-
-    for entry in new_entries:
-        cols = entry.split('\t')
-        print(Fore.GREEN+'\n==================================================================')
-        for idx, col, in enumerate(cols):
-            print(f'{headers[idx]}:\t\t {col.strip()}')
-        print('==================================================================\n'+Fore.RESET)
-
-    if(len(missing_entries) > 0):
-        print(Fore.RED+"[!] MISSING ENTRIES FOUND!"+Fore.RESET)
-    else:
-        print(Fore.GREEN+"[+] NO MISSING ENTRIES FOUND!"+Fore.RESET)
-
-    for entry in missing_entries:
-        cols = entry.split('\t')
-        print(Fore.RED+'\n==================================================================')
-        for idx, col, in enumerate(cols):
-            print(f'{headers[idx]}:\t\t {col.strip()}')
-        print('==================================================================\n'+Fore.RESET)
+from snapshot import *
 
 if __name__ == '__main__':
 
@@ -93,21 +14,36 @@ if __name__ == '__main__':
     os.system('cls')
     banner()
 
-    check_binaries()
+    check_binaries() # check if autoruns64.exe exists
+    forceCompare = False
 
-    print('[+] CAPTURING CURRENT REGISTRY SNAPSHOT...')
-    latest = take_snapshot()
+    latest = get_last_snapshot()
+    if latest != None:
+        print(f'[+] LATEST SNAPSHOT: {latest}')
+    
+    if sys.argv[1] == '--save':
+        print('[+] SAVING CURRENT REGISTRY SNAPSHOT...') 
+        current = take_snapshot(save_snapshot=True)
+        print(f'[+] SAVED SNAPSHOT IN: {current}')
+        # entries = list_saved_snapshots()
+        # old = entries[len(entries)-2]
+        # new = entries[len(entries)-1]
 
-    entries = list_snapshots()
-    old = entries[len(entries)-2]
-    new = entries[len(entries)-1]
+    if sys.argv[1] == '--nosave':
+       print('[+] CAPTUTING CURRENT REGISTRY SNAPSHOT...')
+       current = take_snapshot(save_snapshot=False)
+       forceCompare = True
+    
+    if len(sys.argv) == 3 and sys.argv[2] == '--compare' or forceCompare:
+        print('\n=================== COMPARING SNAPSHOTS ===================')
+        print(f'CURRENT:\t{current}\nPREVIOUS:\t{latest}')
+        print('===========================================================\n')
 
-    print('\n=================== COMPARING SNAPSHOTS ===================')
-    print(f'CURRENT:\t{new}\nPREVIOUS:\t{old}')
-    print('===========================================================\n')
+        print('[+] COMPARING SNAPSHOTS...\n')
+        new_lines, missing_lines = compare(current, latest)
+        print_entries(new_lines, missing_lines)
 
-    print('[+] COMPARING SNAPSHOTS...\n')
-    new_lines, missing_lines = compare(f'{SAVE_DIR}/{new}', f'{SAVE_DIR}/{old}')
-    print_entries(new_lines, missing_lines)
+        print(Fore.CYAN+"\n[+] DONE!"+Fore.RESET)
 
-    print(Fore.CYAN+"\n[+] DONE!"+Fore.RESET)
+        if forceCompare:
+            os.remove(current)
